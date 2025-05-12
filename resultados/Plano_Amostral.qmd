@@ -1,0 +1,1169 @@
+---
+title: ""
+execute: 
+  echo: false
+  warning: false
+lang: pt
+format:
+  pdf:
+    geometry: 
+      - left=3cm 
+      - right=2cm 
+      - top=3cm 
+      - bottom=2cm
+    classoption: a4paper
+    mainfont: Arial 
+    toc: false
+    number-sections: true
+    
+    include-in-header:
+      - text: |
+          \RequirePackage{graphicx}
+      - file: Estilo.tex
+      
+    linkcolor: black 
+    filecolor: black
+    citecolor: black
+    urlcolor: black 
+    
+    fig-width: 6.2
+    fig-height: 3.66
+
+pdf-engine: lualatex
+pdf-engine-opts:
+  - '--no-shell-escape'
+  - '--halt-on-error'    
+    
+
+highlight-style: tango
+
+
+
+
+crossref: 
+  fig-title: Figura
+  fig-prefix: ""
+  tbl-title: Tabela
+  tbl-prefix: ""
+  title-delim: ":"
+---
+\begin{titlepage}
+\begin{center}
+{\large Departamento de Estatística - EST} \\
+\vspace{0.5cm}
+\begin{figure}[!t]
+    \centering
+    \includegraphics[width=9cm, keepaspectratio]{unb_logo.jpeg}
+\end{figure}
+\vskip 17em
+{\LARGE \textbf{Plano Amostral para entrevista de moradores do Acre}} \\
+\vskip 1em
+{\Large Arthur Gonçalves de Souza - 221022794} \\
+\vskip 15em
+{\Large Técnicas de Amostragem 2} \\
+\vskip 1em
+{\Large Prof. Alan Ricardo da Silva} \\
+\vspace{5cm}
+{\Large Brasília} \\
+\vskip 1em
+{\Large 2025} \\
+\end{center}
+\end{titlepage}
+
+
+\pagenumbering{gobble}
+ 
+\thispagestyle{plain} 
+\mbox{}
+ 
+\hypersetup{linkcolor=black} 
+\renewcommand{\contentsname}{Sumário}
+\setcounter{tocdepth}{3}
+\tableofcontents
+ 
+ 
+\newpage
+\pagenumbering{arabic}
+
+```{r setup, include=FALSE}
+# Baixando pacotes para manipulação dos dados e geração das tabelas
+
+library(pacman)
+p_load(openxlsx, readr, dplyr, kableExtra, tidyr, geobr, sf, ggplot2, reshape2, survey, svrep, forcats, scales)
+options(scipen = 50)
+
+domicilios <- read_rds("../Dados/domicilios.rds")
+setores <- read_rds("../Dados/setores.rds")
+malha <- read_sf("../Dados/Malhas_Acre/AC_setores_CD2022.shp")
+malha$CD_SETOR <- as.numeric(malha$CD_SETOR)
+`%notin%` = Negate(`%in%`)
+C = 140000
+c0 = C*.3
+c1 = 600
+c2 = 12
+c3 = 10
+```
+
+# Introdução
+
+O seguinte relatório possui como objetivo principal a elaboração de um plano amostral para entrevistar pessoas em seus domícilios no Estado do Acre. Nesse contexto, a seleção amostral deve envolver certas particularidades dentro do estado, visto que por exemplo, as opiniões de pessoas que vivem regiões rurais e urbanas podem variar bastante, o que nos leva a garantir que essa heterogeneidade esteja presente na amostra final.
+
+Assim, o plano amostral teve de considerar então uma conglomeração com seleção em três estágios, considerando como primeiro estágio a seleção dos municípios, no segundo estágio a seleção de setores censitários, os quais serão previamente estratificados com base na situação do setor (urbano ou rural), e por último o terceiro estágio, que selecionará os domicílios os quais serão visitados para realizar as entrevistas. Esse método de amostragem, que emprega múltiplos estágios, estratificação e
+pesos desiguais, é conhecido como amostragem complexa.
+
+Para realizar as seleções, foram utilizados dois bancos de dados, sendo primeio os dados dos setores censitários de 2022, disponibilizados pelo IBGE, e também os dados dos domicílios, disponibilizados pelo CNEFE. Os dados de setores censitários apresentam 2.215 observações, com 36 variáveis, abordando características geográficas como o município que o setor se localiza, situação dele, e também informações como número de habitantes e domicílios no setor. Os dados de domicílios apresentam 410.524 observações e 34 variáveis, englobando informações específicas sobre o endereço dos domicílios. Será utilizado ainda os dados das malhas geográficas dos setores censitários, os quais também são disponibilizados pelo IBGE, para a produção de mapas. 
+
+Para o tratamento das bases de dados, elaboração de gráficos, cálculos e seleções de amostra, foi utilizado o software R, versão 4.4.2, com a seed 1 para replicação das análises. 
+
+\newpage
+
+# Referencial teórico
+
+## Amostragem
+A amostragem é uma técnica estatística que permite conseguir resultados aproximados para a população a partir de uma quantidade menor de informações, ou seja, por meio de observações de apenas um "pedaço"$\:$dessa população. Dessa forma, consegue-se, com um intervalo de confiança, reduzir os custos e otimizar o tempo de coleta de informações sem perder a credibilidade para o estudo em questão.
+
+## Amostragem Aleatória Simples
+
+Na amostragem aleatória simples, cada componente da população tem a mesma probabilidade de ser selecionado para fazer parte da amostra, ou seja, dada uma população com $N$ indivíduos, cada um possui probabilidade igual a $\displaystyle \frac{1}{N}$ de ser selecionado. Além disso, é necessário que a seleção de indivíduos seja feita de forma aleatória.
+
+
+## Amostragem sistemática
+
+Na amostragem sistemática, a informação a ser coletada é de fácil acesso (exemplos: assinantes de uma revista, cadastro de funcionários, entre outras situações). De início, determina-se um intervalo de seleção (que pode ser calculado pela divisão da população sobre o tamanho da amostra que será selecionada), o qual é denotado pela letra $k$.
+
+O primeiro termo da amostra é um elemento entre os $k$ primeiros elementos, sorteado de forma aleatória. O segundo componente da amostra será o k-ésimo elemento seguinte, ou seja, "soma-se" $\:$ $k$ posições em relação ao primeiro termo amostrado. O terceiro termo será o k-ésimo elemento seguinte, e assim por diante (seguindo uma progressão aritmética de razão $k$) até que se atinja o número de elementos que se deseja amostrar.
+
+
+## Amostragem Aleatória Estratificada
+
+Na amostragem aleatória estratificada, a população é dividida em L estratos, em que cada elemento deve pertencer a exatamente um estrato, cada estrato contendo $N_1, \, N_2, \, ... \, N_h, \, ..., \, N_L$. Para obter o benefício total da estratificação, o número de elementos em cada estrato deve ser conhecido. Esse método é utilizado para compor grupos mais homogêneos, uma vez que a determinada população é dividida por características distintas. Há três maneiras de realizar a alocação da amostragem aleatória estratificada:
+
+\begin{itemize}
+\item \textbf{Mesmo tamanho (Uniforme):} são retiradas amostras de mesmo tamanho de cada estrato (utiliza-se quando os estratos possuem aproximadamente o mesmo tamanho)
+\item \textbf{Proporcional:} como o próprio nome já diz, realiza-se uma proporção para determinar quantos elementos de cada estrato serão sorteados: quanto maior o estrato, mais elementos serão amostrados daquele estrato
+\item \textbf{Ótima de Neyman:} é o melhor formato, porém aquele que exige mais informações. Considera tanto o tamanho do estrato como também a variância dentro desse estrato
+\end{itemize}
+
+Portanto, se $L$ é o número de estratos, $N$ é o tamanho da população, $n$ é o tamanho total da amostra e $N_h$ é o tamanho do $i$-ésimo estrato na população, com $h=1, \, 2, \, \ldots, \, L$, então o tamanho de cada estrato será dado por:
+
+\begin{itemize}
+\item \textbf{Mesmo tamanho (Uniforme):} $\displaystyle n_h = \frac{n}{L} \, , \; h=1, \, 2, \, \ldots, \, L $
+\item \textbf{Proporcional:} $\displaystyle n_h = n \, \frac{N_h}{N} \, , \; h=1, \, 2, \, \ldots, \, L $
+\item \textbf{Ótima de Neyman:} para um dado custo fixo, a variância do estimador da média pela amostragem estratificada é minimizada para: 
+$$n_h = n\frac{W_hS_h}{\displaystyle\sum_{h=1}^{L}(W_hS_h)}$$
+Em que:
+\begin{itemize}
+    \item $h=1, \, 2, \, \ldots, \, L$
+    \item $W_h$: peso do estrato $h$ ($N_h/N$)
+    \item $S_h$: variância do estrato $h$
+\end{itemize}
+\end{itemize}
+
+## Amostragem Aleatória por Conglomerados
+
+Na amostragem aleatória por conglomerados, a população é separada em grupos (\textit{clusters} ou conglomerados). De maneira geral, pode parecer muito semelhante à amostragem estratificada, uma vez que as duas são separadas em blocos, porém as técnicas são contrárias.
+
+Para a amostragem estratificada, os grupos devem ser heterogêneos entre eles, porém homogêneos dentro de cada estrato, e além disso, garante-se na coleta que exista amostra de todos eles. Já na amostragem por conglomerados, os \textit{clusters} são homogêneos entre eles e heterogêneos dentro de cada conglomerado. Assim, espera-se que cada \textit{cluster} tenha as mesmas características da população.
+
+## Amostragem complexa 
+
+O termo amostragem complexa é usada quando a amostragem é feita usando conglomerados, estratificação e probabilidades de seleção desiguais (Chambers e Skinner, 2003). Esses procedimentos são empregados para garantir maior eficiência na representatividade da amostra, especialmente em populações grandes e heterogêneas, onde a seleção direta de indivíduos pode ser inviável ou custosa. Esse tipo de abordagem é amplamente utilizado em pesquisas populacionais, levantamentos governamentais e estudos epidemiológicos, nos quais a necessidade de garantir representatividade e minimizar vieses é fundamental.
+
+
+## Pesos amostrais
+
+Os pesos amostrais são valores atribuídos a cada unidade amostral (indivíduo, domicílio, setor, etc.) para refletir sua representatividade na população total. Eles são essenciais em planos amostrais complexos, onde a seleção das unidades não é equiprovável (ou seja, nem todos os elementos da população têm a mesma chance de serem selecionados). Os pesos são calculados como o inverso da probabilidade de seleção de cada unidade, ajustando as estimativas para que reflitam adequadamente a população de interesse.
+
+A probabilidade de seleção de uma unidade amostral é determinada pelo desenho amostral utilizado (estratificação, conglomerados, seleção proporcional ao tamanho, etc.). Em um plano amostral com múltiplos estágios, o peso final é o produto dos pesos em cada estágio. Por exemplo, em uma amostragem em três estágios (municípios, setores censitários e domicílios), o peso final é dado por:
+
+$$
+\text{Peso Final} = \frac{1}{P1_i} \times \frac{1}{P2_{ij}} \times \frac{1}{P3_{ijk}}
+$$
+
+Onde:
+
+\begin{itemize}
+\item \( P1_i \): Probabilidade de seleção do município \( i \) no primeiro estágio.
+\item \( P2_{ij} \): Probabilidade de seleção do setor \( j \) no município \( i \) no segundo estágio.
+\item \( P3_{ijk} \): Probabilidade de seleção do domicílio \( k \) no setor \( j \) do município \( i \) no terceiro estágio.
+\end{itemize}
+
+## Unidades oversized
+
+Um dos principais problemas que podem ser encontrados tratando de seleção de conglomerados de tamanho desigual é a questão das unidades oversizeds ou superdimensionadas. Unidades são definidas dessa forma quando elas apresentam uma grande magnitude com relação à variável de interesse, ocasionando numa probabilidade de seleção extremamente alta, muitas vezes até maior que um. Para identificar essas unidades, antes de realizar o sorteio da amostra, utiliza-se o critério de que um município é considerado oversized caso:
+
+$$
+Prob > 1 \Leftrightarrow\frac{aT_i}{T_0}>1 \Leftrightarrow \fbox{$\displaystyle T_i > \frac{T_0}{a}$}
+$$
+Onde:
+
+\begin{itemize}
+
+\item $a$: Número de unidades a serem selecionadas na amostra;
+\item $T_i$: Valor da variável de interesse na unidade em questão;
+\item $T_0$: Total da variável de interesse considerando todas as unidades.
+
+\end{itemize}
+
+A partir da verificação desse critério, é realizada uma estratificação das unidades, agrupando as unidades oversizeds no estrato 1 (ou estrato "certo"), que portanto, já estarão presentes na amostra devido à sua dimensão, sendo atribuido à essas unidades o peso amostral 1, enquanto as unidades que não foram classificadas como oversizeds, são agrupadas no estrato 2.
+
+Vale destacar também que esse processo é repetido até que não sejam encontradas mais unidades oversizeds. Dado que o processo já foi realizado uma vez, a segunda verificação utilizaria o seguinte critério:
+
+$$
+T_i > \frac{T_{0II}}{a_{II}}
+$$
+
+onde:
+
+\begin{itemize}
+
+\item $a_{II}$: Número de unidades a serem selecionadas do estrato 2 (a - número da unidades no estrato 1);
+\item $T_{0II}$: Total da variável de interesse considerando todas as unidades do estrato II.
+
+\end{itemize}
+
+E as repetições vão seguindo nesse sentido, apenas atualizando os valores de $a$ e $M_0$.
+
+## Unidades undersized
+
+Outro problema que também pode ser encontrado em seleções de conglomerados de tamanho desigual é basicamente o contrário das unidades oversizeds, agora as unidades undersizeds ou subdimensionadas. Unidades são definidas undersizeds quando estas possuem uma quantidade muito pequena de unidades secundárias, que comporão o segundo estágio. Para realizar tal verificação, após o sorteio das $a$ unidades, analisa-se se alguma unidade se enquadra no seguinte critério:
+
+$$
+M_i < m_i
+$$
+onde $M_i$ é o número total de unidades secundárias na unidade primária, enquanto que $m_i$ é o número de unidades secundárias que deverão ser selecionadas a partir da unidade primária, e possui a seguinte fórmula:
+
+$$
+m_i = \frac{a \times \bar{m} \times M_i}{\sum\limits_{i=1}^{a}M_i}
+$$
+
+A partir da verificação desse critério, caso haja alguma unidade undersized, é possível juntar esse unidade com alguma outra que seja considerada mais próxima, ou então, caso haja mais de uma, podendo agrupar todas as undersizeds como uma só, para então criar unidades com tamanhos suficientes. Ao contrário da verificação de oversizeds, esse processo só precisa ser realizado uma vez por estágio. 
+
+\newpage
+# Cálculos do tamanho da Amostra
+
+O plano amostral em questão, definido como complexo, será composto por 3 estágios, sendo respectivamente a seleção de municípios, setores censitários e domicílios, considerando pesos desiguais em cada estágio. Para o cálculo dos tamanhos das amostras de cada estágio, será utilizada a estrutura com base no $P$ (rate of homogenity - roh), onde $P$ = $\frac{Deff - 1}{\bar{P} - 1}$. Nesse contexto, $\bar{P}$ representa o número médio de domicílios por setor censitários, e com base nos dados de setores, $\bar{P} \approx 150,11$. Assim, de acordo com o demandante, foi fixado um valor de $Deff = 2,5$, e então obtém-se o valor de $P$:
+
+$$
+P = \frac{Deff - 1}{\bar{P} - 1} = \frac{2,5 - 1}{150,11 - 1} \approx 0,01
+$$
+
+```{r}
+# Cálculo do P_barra -> número médio de domicilios por setor
+
+P_barra = mean(setores$v0002)
+```
+
+
+```{r}
+# Cálculo do ROH
+Deff = 2.5
+
+
+P <- (Deff -1)/(P_barra - 1)
+```
+
+
+```{r}
+# Cálculo p_barra
+
+p_barra_exato = sqrt(((1-P)/P)*(c2/c3))
+p_barra = round(p_barra_exato)
+```
+
+A partir desse valor de $P$, pode-se agora calcular o valor de $\bar{p}$, que representa o número médio de domicílios que devem ser sorteados de cada setor censitário na amostra. Para tal, será necessário utilizar os custos reservados para o projeto, que de acordo com o demandante, são:
+
+\begin{itemize}
+    \item $C = R\$140.000$, sendo o custo total da pesquisa;
+    \item $C_0 = R\$24.000$, sendo o custo fixo;
+    \item $C_1 = R\$ 600,00$, sendo o custo para selecionar um município;
+    \item $C_2 = R\$12,00$, sendo o custo para selecionar um setor censitário;
+    \item $C_3 = R\$ 10,00$, sendo o custo para entrevistar um domicílio.
+\end{itemize}
+
+Dessa forma, tem-se que:
+
+$$
+\bar{p} = \sqrt{\frac{(1-P)}{P}\frac{C_2}{C_3}} = \sqrt{\frac{(1-0,01)}{0,01}\frac{12}{10}} \approx 11
+$$
+Seguindo assim, pode-se calcular o valor de $\bar{m}$, que representa o número médio de setores que devem ser selecionados de cada município na amostra. A fórmula para obtenção de $\bar{m}$ é:
+
+$$
+\bar{m} = \frac{z^2_\frac{\alpha}{2} \times {CV}^2 \times (P + \frac{1-P}{\bar{p}})}{r^2}
+$$
+Com:
+\begin{itemize}
+\item $z_\frac{\alpha}{2}$: quantil da distribuição normal padrão e aproximadamente igual a 1,96 para $\alpha$ = 5\%;
+\item $\alpha$: nível de significância;
+\item ${CV}$: Coeficiente de variação da variável analisada
+\item $r$: Erro percentual
+\item $P$: rate of homogenity
+\item $\bar{p}$: Número médio de domicílios que devem ser sorteados de cada setor censitário na amostra
+\end{itemize}
+
+Porém, não há um CV já definido para o estudo, e nesse caso o estimaremos com base na proporção de municípios grandes (número de habitantes maior que 50 mil) no Acre, que chamaremos de prop:
+
+
+```{r}
+malha_mun <- read_municipality(code_muni = 12, year = 2022)
+tabela_tamanho <- setores[-37] %>% 
+  group_by(NM_MUN) %>% 
+  summarise(n_habitantes = sum(v0001),
+            n_setores = n()) %>% 
+  mutate(tamanho = ifelse(n_habitantes < 50000, "Pequeno", "Grande")) 
+
+mapa_habitantes <- left_join(malha_mun,tabela_tamanho, by = c("name_muni" = "NM_MUN"))
+
+ggplot(mapa_habitantes)+
+  geom_sf(aes(fill = n_habitantes), color = "black", size = 2)+
+  geom_sf_label(aes(label = name_muni), size = 1.8)+
+  theme_void()+
+  labs(title = "Número de habitantes por municípios do Acre", caption = "Fonte: Elaboração própria")+
+  scale_fill_gradient(low = "lightblue", high = "darkblue",
+                       name="Número de habitantes")+
+  theme(plot.title = element_text(size = 15, hjust = .7))
+
+```
+
+```{r}
+# Definindo valor da Proporção
+
+kable(tabela_tamanho[,c(1,2,4)], caption = "Número de habitantes por municípios do Acre", col.names = c("Município", "Número de habitantes", "Classificação"), align = "c", format.args = list(decimal.mark = ",", big.mark = "."))
+
+prop = mean(tabela_tamanho$tamanho == "Grande")
+kable(prop, caption = "Proporção de municípios \ngrandes no Acre", col.names = "", format.args = list(decimal.mark = ",", big.mark = "'"))
+```
+
+A partir desse valor, obtém-se $CV = \sqrt{prop*(1-prop)} \approx 0,287$, e então podemos gerar uma tabela com os valores possíveis de $\bar{m}$ com base em valores $r$ fixados. Consequentemente, também é possível obter os possíveis valores $a$, que representa o número de municípios a serem selecionados na amostra, e é calculado como:
+
+$$
+a = \frac{C - C_0}{C_1 + C_2\times \bar{m} + C_3 \times \bar{m} \times \bar{p}}
+$$
+
+que é derivada da função de custos $C = C_0 + C_1\times a + C_2 \times a \times \bar{m} + C_3 \times a \times \bar{m} \times \bar{p}$
+```{r}
+# Cálculo m_barra
+calculo_m = function(cv, P, erro){
+  z = qnorm(1 - .05/2)
+  (z^2 * cv^2 * (P+ (1-P)/p_barra))/ erro^2
+}
+
+cv = sqrt(prop*(1-prop))
+```
+
+A partir dessas fórmulas, é obtida a seguinte tabela:
+
+
+```{r}
+# Matriz com valores de m_barra
+
+erros <- c(seq(.01, .05, by = .005))
+
+m = matrix(ncol = 1, nrow = length(erros), dimnames = list(erros, "Tamanho de amostra"))
+for (j in seq_along(erros)) {
+    erro = erros[j]
+    m[j, 1] = round(calculo_m(cv, P, erro))
+    
+}
+
+valores_m = as.numeric(m[,1])
+valores_a = NULL
+for (i in seq_along(valores_m)){
+  m_barra = valores_m[i]
+  valores_a[i] = round((C- c0)/(c1 + c2*m_barra + c3*m_barra*p_barra))
+}
+
+erros_p = c("1%", "1,5%", "2%", "2,5%", "3%", "3,5%", "4%", "4,5%", "5%")
+data.frame(erros_p,valores_m, valores_a) %>% 
+  kable(col.names = c("Erros","Setores", "Municípios"), caption = "Tabela com a relação de erros fixados e os tamanhos de amostra", align = "c", format.args = list(decimal.mark = ",", big.mark = "."))
+```
+
+A partir da tabela acima, e em concordância com o demandante, optou-se por definir $\bar{m} = 51$ e $a = 14$, concluindo portanto, que a amostra final apresentará:
+
+```{r}
+# Calculando valores de a com base nos custos
+
+
+m_barra_exato = calculo_m(cv, P, 0.025)
+m_barra = round(m_barra_exato)
+
+a = round((C- c0)/(c1 + c2*m_barra + c3*m_barra*p_barra))
+
+# Custo na prática
+custo_real = c0 + c1*a + c2*a*m_barra + c3*a*m_barra*p_barra
+```
+
+
+```{r}
+Unidades <- c("Municípios", "Setores", "Domicílios")
+Quantidade <- c(a, a*m_barra, a*m_barra*p_barra)
+tabela_amostragem = data.frame(Unidades, Quantidade)
+kable(tabela_amostragem, caption = "Quantidade de Unidades no Plano Amostral", align = "c", format.args = list(decimal.mark = ",", big.mark = "."))
+```
+
+\newpage
+# Primeiro Estágio: Municípios
+
+Como objetivo do plano amostral é representar toda a população do estado do Acre, é importante se basear nesse número para verificar posteriormente se a amostra realmente está sendo representativa, a partir dos pesos amostrais. Nesse sentido, segue abaixo a população total do Estado do Acre:
+
+```{r}
+total = format(sum(setores$v0001), big.mark = ".")
+kable(paste(total, "pessoas"), caption = "População Acre (2022)" ,format.args = list(decimal.mark = ",", big.mark = "."), col.names = "")
+```
+
+O primeiro passo para a seleção da amostra do municípios, nesse caso o 1º estágio, é a verificação de quais municípios são considerados oversizeds. O processo teve de ser realizado 3 vezes, e ao final foi obtido o seguinte resultado:
+
+```{r, include=FALSE}
+# Verificando oversized
+over_1 <- tabela_tamanho %>% 
+  mutate(oversized = ifelse(n_habitantes > sum(setores$v0001)/a, "Sim", "Não"),
+         estrato = ifelse(oversized == "Não", 2, 1))%>% 
+  arrange(desc(n_habitantes))
+over_1[,c(1,2,5,6)]
+```
+
+```{r, include=FALSE}
+# Dividindo em estratos
+
+estrato_1 <- over_1 %>% filter(estrato == 1) %>% select(1,2,3,6)
+estrato_2 <- over_1 %>% filter(estrato == 2) %>% select(1,2,3,6)
+
+# Verificando Oversized novamente
+ over_2 <- estrato_2 %>% 
+  mutate(oversized = ifelse(n_habitantes > sum(estrato_2$n_habitantes)/(a - nrow(estrato_1)), "Sim", "Não"),
+         estrato = ifelse(oversized == "Não", 2, 1))
+ over_2[, c(1,2,5,4)]
+ 
+```
+
+
+```{r, include=FALSE}
+estrato_1 <- rbind(estrato_1, over_2 %>% filter(estrato == 1) %>% select(c(1,2,3,4)))
+estrato_2 <- over_2 %>% filter(estrato == 2) %>% select(1,2,3,4)
+
+# Verificando Oversized novamente
+ over_3 <- estrato_2 %>% 
+  mutate(oversized = ifelse(n_habitantes > sum(estrato_2$n_habitantes)/(a - nrow(estrato_1)), "Sim", "Não"),
+         estrato = ifelse(oversized == "Não", 2, 1))
+ over_3[, c(1,2,5,4)]
+
+```
+
+```{r}
+tab_over <- rbind(estrato_1[,c(1,2,4)], estrato_2[,c(1,2,4)]) %>% 
+  mutate(over = ifelse(estrato == 1, "Sim" ,"Não"))
+  kable(tab_over, col.names = c("Município", "Número de habitantes", "Estrato", "Oversized"), format.args = list(big.mark = "."), align = "c", caption = "Análise de municípios oversizeds")
+```
+
+
+```{r, include=FALSE}
+set.seed(1)
+# Sorteando os municípios no estrato 2
+estrato_2 <- estrato_2[sample(nrow(estrato_2)),] %>% 
+  mutate(acumulado = cumsum(n_habitantes)) 
+estrato_2
+```
+
+A partir da análise de oversizeds, segue-se então para o sorteio dos municípios do estrato 2. Restaram-se 17 municípios no estrato 2, dos quais devem-se selecionar 9 (a = 14 - municípios oversizeds = 5). Para realizar a seleção foi optado por utilizar o método sistemático. 
+
+\newpage
+```{r}
+# Sorteando os municípios de forma sistemática
+k = round((sum(estrato_2$n_habitantes)/(a - nrow(estrato_1))))
+ponto_1 = as.integer(runif(1)*k)
+pontos_k = seq(ponto_1, sum(estrato_2$n_habitantes), k)
+
+
+# Inicializar variáveis
+indices_amostra <- numeric(length(pontos_k))
+usados <- c()  # Vetor para armazenar índices já selecionados
+
+# Selecionar índices únicos
+for (i in seq_along(pontos_k)) {
+  idx <- which(estrato_2$acumulado >= pontos_k[i])[1]
+  while (idx %in% usados && !is.na(idx)) {
+    idx <- idx + 1  # Avançar para o próximo índice disponível
+  }
+  if (!is.na(idx)) {
+    indices_amostra[i] <- idx
+    usados <- c(usados, idx)  # Adicionar índice ao vetor de usados
+  }
+}
+
+estrato_2 <- estrato_2[indices_amostra,]
+
+amostra_mun <- rbind(estrato_1[,c(1,2,3,4)], estrato_2[, c(1,2,3,4)])
+mun_sorteados <- amostra_mun$NM_MUN
+tab_mun = amostra_mun[c(1,2,4)]
+tab_mun$indice = 1:14
+kable(tab_mun[,c(4,1,2,3)], caption = "Amostra de municípios", col.names = c("","Municípios", "Número de habitantes", "Estrato"), align = "c", format.args = list(big.mark = "."))
+```
+Em seguida, com a amostra de municipios já definida, pode-se realizar então a análise de municípios undersizeds, realizando o cálculo do valor de $m_i$ para cada município selecionado, e verificando se algum possui o número de setores menor que $m_i$
+
+```{r}
+# Analisando undersized, MI < mi 
+amostra_mun %>% 
+  mutate(mi = round((a*m_barra*n_setores)/sum(n_setores)),
+         undersized = ifelse(n_setores < mi, "Sim", "Não")) -> amostra_mun
+kable(amostra_mun[,c(1,3,5,6)], caption = "Análise de municípios undersizeds", col.names = c("Municípios", "Número de setores", "$m_i$", "Undersized"), align = "c", format.args = list(big.mark = "."))
+
+# Sem undersized
+```
+
+Observando a tabela acima, percebe-se que não foram identificados municípios undersizeds na amostra. Vale ressaltar que como o plano amostral é proporcional ao tamanho de cada unidade, torna-se bem difícil obter unidades undersizeds, visto que o cálculo do $m_i$ evita que isso aconteça. Sendo assim, para finalizar a seleção, calcula-se os pesos amostrais para cada município, cuja soma do número de habitantes ponderada deve coincidir com a população total do estado do Acre.
+
+```{r}
+# estrato 1 -> peso 1 e estrato 2 -> M02/ a- nrow(estrato1)*Mi_pop
+
+amostra_mun %>% 
+  mutate(peso_1 = ifelse(estrato == 1, 1, sum(over_3$n_habitantes)/(nrow(estrato_2)*n_habitantes))) -> amostra_mun
+setores <- left_join(setores, amostra_mun[,c(1,7)])
+
+soma_estagio_1 = sum(amostra_mun$peso_1 * amostra_mun$n_habitantes)
+
+kable(soma_estagio_1, caption = "Soma do total de habitantes ponderados pelo peso no 1º estágio" ,format.args = list(decimal.mark = ",", big.mark = "."), col.names = "")
+
+```
+Como o resultado coincide com a população do estado, pode-se afirmar que a seleção no 1º estágio foi realizada de forma adequada. Sendo assim, seguem abaixo dois mapas representando os municípios selecionados para a amostra. 
+
+```{r}
+tabela_tamanho[,1] %>% 
+  mutate(amostra = ifelse(NM_MUN %in% amostra_mun$NM_MUN, "Sorteado", "Não sorteado")) -> municipios
+
+malha_mun <- left_join(malha_mun, municipios, by = c("name_muni"="NM_MUN"))
+
+
+ggplot(malha_mun)+
+geom_sf(aes(fill = amostra), color = "black", size = 2)+
+  geom_sf_label(aes(label = name_muni), size = 1.8)+
+  scale_fill_manual(values = c("lightblue", "darkblue"), name = "")+
+  theme_void()+
+  labs(title = "Mapa da amostra de municípios do Acre", caption = "Fonte: Elaboração própria")+
+  theme(plot.title = element_text(size = 15, hjust = .7))
+```
+
+```{r}
+mun_estratos <- left_join(municipios, amostra_mun[,c(1,4)]) %>% 
+  mutate(estrato = ifelse(is.na(estrato) == T, amostra, estrato),
+         estrato = ifelse(estrato == 1, "1 (Certo)", estrato))
+mun_estratos <- left_join(malha_mun, mun_estratos, by = c("name_muni"="NM_MUN"))
+
+ggplot(mun_estratos)+
+geom_sf(aes(fill = estrato), color = "black", size = 2)+
+  geom_sf_label(aes(label = name_muni), size = 1.8)+
+  scale_fill_manual(values = c("darkblue", "blue", "lightblue"), name = "Estrato")+
+  theme_void()+
+  labs(title = "Mapa da amostra de municípios do Acre (por estrato)", caption = "Fonte: Elaboração própria")+
+  theme(plot.title = element_text(size = 15, hjust = .7))
+```
+
+\newpage
+
+# Segundo Estágio: Setores Censitários
+
+Ao tratar do segundo estágio, que objetiva a seleção de setores censitários, percebe-se um possível fator de heterogeneidade, relacionado com a situação do setor, categorizado em rural e urbano. Nesse sentido, é ideal que o segundo estágio seja estratificado com base em tal variável. Para tal, optou-se pela alocação proporcional, fazendo com que se tenha que dividir o $m_i$ de cada município com relação à proporção de cada categoria no mesmo. Seguem abaixo o gráfico da proporção dos setores rurais e urbanos por município, além da tabela com as devidas alocações. 
+
+```{r}
+setores <- left_join(setores, domicilios %>% group_by(COD_SETOR) %>%summarise(n_domicilios = n()), by = c("CD_SETOR" = "COD_SETOR"))
+municipios_selecionados_gra <- setores %>% filter(NM_MUN %in% mun_sorteados)
+```
+
+```{r}
+municipios_selecionados_gra %>% 
+  group_by(NM_MUN, SITUACAO) %>% 
+  summarise(qtd = n()) %>% 
+  mutate(pct = qtd/sum(qtd),
+         rotulo = scales::percent(pct)) %>% 
+  ggplot(.) +
+  aes(x = NM_MUN,y = pct ,fill = SITUACAO) +
+  geom_bar(stat = "identity",position = "fill") +
+  scale_y_continuous(breaks = seq(0, 1, .2), 
+                     label = percent)+
+  geom_text(aes(label = rotulo),
+            size = 3, 
+            position = position_stack(vjust = 0.5), hjust = 0.5) +
+  scale_fill_manual(values = c("blue", "lightblue"), name = "")+
+  coord_flip()+
+  labs(x = "Municípios", y = "Proporção", title = "Proporção de setores rurais e urbanos por município") +
+  theme_light()+
+  theme(plot.title = element_text(size = 15, hjust = .7))
+
+```
+
+
+```{r}
+
+municipios_selecionados_gra %>% 
+  group_by(NM_MUN, SITUACAO) %>% 
+  summarise(qtd = n()) %>% 
+  dcast(NM_MUN ~ SITUACAO, value.var = "qtd") -> municipios_selecionados
+
+municipios_selecionados <-  left_join(municipios_selecionados, amostra_mun[, c(1,2,3,5)]) %>% mutate(mi_rural = round(Rural*mi/n_setores),
+                      mi_urbano = round(Urbana*mi/n_setores))
+
+#municipios_selecionados[8,6] <- 16
+municipios_selecionados <- distinct(left_join(municipios_selecionados, setores[, c(11,10)]))
+
+municipios_selecionados <- municipios_selecionados[,c(9,1,4,5,2,3,6,7,8)]
+kable(municipios_selecionados[,c(2, 4, 5,6,7,8,9)], caption = "Setores por municípios selecionados", col.names = c("Municípios", "Número de setores", "Setores rurais", "Setores urbanos", "$m_i$", "$m_i Rural$", "$m_i Urbano$"), align = "c")
+```
+
+Após a alocação proporcional, parte-se então para a análise dos setores censitários oversizeds. Agora no segundo estágio, a dinâmica muda um pouco, e serão considerados:
+
+\begin{itemize}
+
+\item $T_i$: Número de habitantes no setor censitário.
+\item $T_0$: Número total de habitantes dos setores naquele estrato (rural ou urbano) para aquele município;
+\item $a$: $m_{ih}$, ou seja, número de setores censitários a serem selecionados do h-ésimo estrato (rural ou urbano) do i-ésimo município.
+
+\end{itemize}
+
+
+```{r}
+# Filtrando domicilios
+domicilios <- domicilios %>% filter(COD_MUNICIPIO %in% municipios_selecionados$CD_MUN)
+
+# Criar uma lista para armazenar os bancos de dados por município
+bancos_municipios <- lapply(mun_sorteados, function(mun) {
+  dados_municipio <-  setores %>% filter(NM_MUN == mun)
+  
+# Criar dois bancos separados
+  list(
+    Urbano = dados_municipio %>% filter(SITUACAO == "Urbana"),
+    Rural = dados_municipio %>% filter(SITUACAO == "Rural")
+  )
+})
+# Nomear cada elemento da lista com o nome do município
+names(bancos_municipios) <- mun_sorteados
+
+```
+
+
+```{r, include=FALSE}
+resultado_oversized_final <- lapply(names(bancos_municipios), function(municipio) {
+  # Filtrar bancos do município
+  bancos <- bancos_municipios[[municipio]]
+  
+  # Obter os parâmetros do município
+  parametros <- municipios_selecionados %>% filter(NM_MUN == municipio)
+  mi_rural <- parametros$mi_rural
+  mi_urbano <- parametros$mi_urbano
+  
+  # Inicializar os bancos para iteração
+  urbano <- bancos$Urbano %>%
+    mutate(estrato = 2, oversized = "Não")
+  rural <- bancos$Rural %>%
+    mutate(estrato = 2, oversized = "Não")
+  
+  # Variáveis de controle
+  mudou <- TRUE  # Para controlar o loop
+  iteracao <- 0  # Para acompanhar as iterações
+  
+  while (mudou) {
+    iteracao <- iteracao + 1
+    print(paste("Início da iteração", iteracao, "para o município:", municipio))
+    
+    # Recalcular as somas apenas para os setores restantes no estrato 2
+    soma_urbano <- sum(urbano$v0001[urbano$estrato == 2], na.rm = TRUE)
+    soma_rural <- sum(rural$v0001[rural$estrato == 2], na.rm = TRUE)
+    
+    # Contar setores oversized nas iterações anteriores
+    n_oversized_urbano <- sum(urbano$estrato == 1, na.rm = TRUE)
+    n_oversized_rural <- sum(rural$estrato == 1, na.rm = TRUE)
+    
+    # Ajustar mi
+    mi_urbano_ajustado <- mi_urbano - n_oversized_urbano
+    mi_rural_ajustado <- mi_rural - n_oversized_rural
+    
+    # Recalcular os limites
+    limite_urbano <- soma_urbano / mi_urbano_ajustado
+    limite_rural <- soma_rural / mi_rural_ajustado
+    
+    # Printar limites para acompanhamento
+    print(paste("Limite urbano ajustado:", limite_urbano, "| Limite rural ajustado:", limite_rural))
+    
+    # Atualizar os bancos
+    urbano_atualizado <- urbano %>%
+      mutate(
+        oversized = ifelse(v0001 > limite_urbano & estrato != 1, "Sim", oversized),
+        estrato = ifelse(oversized == "Sim", 1, estrato)
+      )
+    rural_atualizado <- rural %>%
+      mutate(
+        oversized = ifelse(v0001 > limite_rural & estrato != 1, "Sim", oversized),
+        estrato = ifelse(oversized == "Sim", 1, estrato)
+      )
+    
+    # Verificar se houve mudanças
+    mudou <- !all(urbano_atualizado$oversized == urbano$oversized) |
+             !all(rural_atualizado$oversized == rural$oversized)
+    
+    # Atualizar os bancos
+    urbano <- urbano_atualizado
+    rural <- rural_atualizado
+    
+    # Printar setores oversized na iteração atual
+    print(paste("Setores urbanos oversized na iteração", iteracao, "para o município", municipio, ":"))
+    print(urbano %>% filter(oversized == "Sim"))
+    print(paste("Setores rurais oversized na iteração", iteracao, "para o município", municipio, ":"))
+    print(rural %>% filter(oversized == "Sim"))
+  }
+  
+  # Retornar os resultados finais para o município
+  list(
+    Urbano = urbano,
+    Rural = rural
+  )
+})
+
+# Nomear os elementos da lista com os nomes dos municípios
+names(resultado_oversized_final) <- names(bancos_municipios)
+
+```
+
+```{r, include=FALSE}
+# Verificar setores urbanos oversized no primeiro município
+feijo <- resultado_oversized_final[[5]]$Rural 
+sum(feijo$v0001)/48
+feijo <- feijo %>% filter(v0001 <= sum(feijo$v0001)/48)
+sum(feijo$v0001)/29
+feijo <- feijo %>% filter(v0001 <= sum(feijo$v0001)/29)
+sum(feijo$v0001)/21
+feijo <- feijo %>% filter(v0001 <= sum(feijo$v0001)/21)
+sum(feijo$v0001)/20
+feijo <- feijo %>% filter(v0001 <= sum(feijo$v0001)/20)
+```
+
+
+```{r}
+# Setores oversizeds que não possuem domicílios no cnefe
+
+setores_prob <- c("120040105000492", "120060905000066", "120060905000180", "120050005000170", "120030205000207", "120033605000084", "120033605000086"
+)
+
+# Função para ajustar os setores problemáticos em um município
+ajustar_setores_prob <- function(bancos, setores_prob) {
+  bancos$Urbano <- bancos$Urbano %>%
+    mutate(
+      estrato = ifelse(CD_SETOR %in% setores_prob, 2, estrato),
+      oversized = ifelse(CD_SETOR %in% setores_prob, "Não", oversized)
+    )
+  
+  bancos$Rural <- bancos$Rural %>%
+    mutate(
+      estrato = ifelse(CD_SETOR %in% setores_prob, 2, estrato),
+      oversized = ifelse(CD_SETOR %in% setores_prob, "Não", oversized)
+    )
+  
+  return(bancos)
+}
+
+# Aplicar a função para ajustar os setores problemáticos em cada município
+resultado_oversized_final <- lapply(resultado_oversized_final, function(bancos) {
+  ajustar_setores_prob(bancos, setores_prob)
+})
+
+# Nomear os elementos da lista com os nomes dos municípios
+names(resultado_oversized_final) <- names(bancos_municipios)
+```
+
+A partir da análise de setores oversizeds, foi percebido um possível empecilho para a amostragem, 7 setores que foi considerados como oversizeds, ou seja, estavam no estrato certo, não continham domicílios cadastrados nos dados do CNEFE, o que levou a desconsiderar esses setores na amostra, e então forçar o sorteio a não selecioná-los. Dessa forma, sumariza-se da seguinte forma a análise de setores oversizeds. 
+
+```{r}
+# Gerar uma tabela com o número de setores oversized por município
+tabela_oversized <- lapply(names(resultado_oversized_final), function(municipio) {
+  # Obter os bancos finalizados para o município
+  bancos <- resultado_oversized_final[[municipio]]
+  
+  # Contar setores oversized em urbano e rural
+  n_oversized_urbano <- sum(bancos$Urbano$estrato == 1, na.rm = TRUE)
+  n_oversized_rural <- sum(bancos$Rural$estrato == 1, na.rm = TRUE)
+  
+  # Retornar os dados como data frame
+  data.frame(
+    Municipio = municipio,
+    Oversized_Urbano = n_oversized_urbano,
+    Oversized_Rural = n_oversized_rural
+  )
+}) %>%
+  bind_rows()
+
+# Renomear a coluna `Municipio` de `tabela_oversized` para `NM_MUN`
+tabela_oversized <- tabela_oversized %>%
+  rename(NM_MUN = Municipio)
+
+# Fazer o left_join
+municipios_selecionados %>%
+  left_join(tabela_oversized[, c(1,3,2)], by = "NM_MUN") %>% select(2, 5,6, 8, 9, 10,11) %>% 
+  kable(., caption = "Análise de setores oversizeds", col.names = c("Municípios", "Setores rurais", "Setores urbanos", "$m_i$ Rural", "$m_i$ Urbano", "Setores rurais oversizeds", "Setores urbanos oversizeds"), align = "c")
+
+```
+
+```{r}
+# Inicializar uma lista para armazenar os resultados
+pesos_segundo_estagio <- list()
+
+# Iterar sobre cada município
+for (municipio in names(resultado_oversized_final)) {
+  # Obter os bancos de setores urbanos e rurais do município
+  bancos <- resultado_oversized_final[[municipio]]
+  
+  # Obter os parâmetros do município
+  parametros <- municipios_selecionados %>% filter(NM_MUN == municipio)
+  mi_rural <- parametros$mi_rural
+  mi_urbano <- parametros$mi_urbano
+  
+  # Contar o número de setores oversized (estrato 1)
+  n_oversized_urbano <- sum(bancos$Urbano$estrato == 1, na.rm = TRUE)
+  n_oversized_rural <- sum(bancos$Rural$estrato == 1, na.rm = TRUE)
+  
+  # Ajustar mi (número de setores a serem sorteados no estrato 2)
+  mi_urbano_ajustado <- mi_urbano - n_oversized_urbano
+  mi_rural_ajustado <- mi_rural - n_oversized_rural
+  
+  # Calcular a soma do tamanho dos setores no estrato 2 (urbano e rural)
+  soma_urbano_estrato2 <- sum(bancos$Urbano$v0001[bancos$Urbano$estrato == 2], na.rm = TRUE)
+  soma_rural_estrato2 <- sum(bancos$Rural$v0001[bancos$Rural$estrato == 2], na.rm = TRUE)
+  
+  # Calcular os pesos para setores urbanos
+  urbano <- bancos$Urbano %>%
+    mutate(
+      peso_2 = ifelse(
+        estrato == 1,  # Se for oversized (estrato 1)
+        1,  # Peso = 1
+        soma_urbano_estrato2 / (mi_urbano_ajustado * v0001)  # Peso para estrato 2
+      )
+    )
+  
+  # Calcular os pesos para setores rurais
+  rural <- bancos$Rural %>%
+    mutate(
+      peso_2 = ifelse(
+        estrato == 1,  # Se for oversized (estrato 1)
+        1,  # Peso = 1
+        soma_rural_estrato2 / (mi_rural_ajustado * v0001)  # Peso para estrato 2
+      )
+    )
+  
+  # Armazenar os resultados
+  pesos_segundo_estagio[[municipio]] <- list(
+    Urbano = urbano,
+    Rural = rural
+  )
+}
+
+```
+
+
+```{r}
+resultado_oversized_final <- pesos_segundo_estagio
+setores_cnefe <- unique(domicilios$COD_SETOR)
+# Função para sortear os setores
+amostra_s <- lapply(names(resultado_oversized_final), function(municipio) {
+  # Obter os bancos finalizados para o município
+  bancos <- resultado_oversized_final[[municipio]]
+  bancos$Urbano <- bancos$Urbano %>% filter(CD_SETOR %notin% setores_prob)
+  bancos$Rural <- bancos$Rural %>% filter(CD_SETOR %notin% setores_prob)
+  
+  # Obter parâmetros do município
+  parametros <- municipios_selecionados %>% filter(NM_MUN == municipio)
+  mi_rural <- parametros$mi_rural
+  mi_urbano <- parametros$mi_urbano
+  
+  # Contar os setores oversized garantidos na amostra
+  n_oversized_urbano <- sum(bancos$Urbano$estrato == 1, na.rm = TRUE)
+  n_oversized_rural <- sum(bancos$Rural$estrato == 1, na.rm = TRUE)
+  
+  # Calcular o número de setores a sortear
+  n_sortear_urbano <- mi_urbano - n_oversized_urbano
+  n_sortear_rural <- mi_rural - n_oversized_rural
+  
+  # Garantir que o número de setores a sortear não seja negativo
+  n_sortear_urbano <- max(0, n_sortear_urbano)
+  n_sortear_rural <- max(0, n_sortear_rural)
+  
+  # Sortear os setores do estrato 2
+  setores_sorteados_urbano <- bancos$Urbano %>%
+    filter(estrato == 2 & CD_SETOR %in% setores_cnefe) %>%
+    slice_sample(n = n_sortear_urbano)
+  
+  setores_sorteados_rural <- bancos$Rural %>%
+    filter(estrato == 2 & CD_SETOR %in% setores_cnefe) %>%
+    slice_sample(n = n_sortear_rural)
+  
+  # Combinar os setores garantidos (estrato 1) e sorteados (estrato 2)
+  amostra_urbano <- bancos$Urbano %>%
+    filter(estrato == 1) %>%
+    bind_rows(setores_sorteados_urbano)
+  
+  amostra_rural <- bancos$Rural %>%
+    filter(estrato == 1) %>%
+    bind_rows(setores_sorteados_rural)
+  
+  # Retornar a amostra final para o município
+  list(
+    Urbano = amostra_urbano,
+    Rural = amostra_rural
+  )
+})
+
+# Nomear os elementos da lista com os nomes dos municípios
+names(amostra_s) <- names(resultado_oversized_final)
+
+# Resultado: `amostra_final` contém os setores sorteados para cada município.
+
+```
+
+
+A partir de tal análise, segue-se então para o sorteio dos setores censitários não oversizeds dentro de situação para cada município, relembrando que serão sorteados $m_{ih}$ setores de cada estrato e de município. Nesse estágio, a seleção foi feita por meio de seleção aleatória. 
+
+```{r}
+amostra_undersized <- lapply(names(amostra_s), function(municipio) {
+  # Obter os bancos do município
+  bancos <- amostra_s[[municipio]]
+  
+  # Obter os parâmetros do município
+  parametros <- municipios_selecionados %>% filter(NM_MUN == municipio)
+  mi_rural <- parametros$mi_rural
+  mi_urbano <- parametros$mi_urbano
+  
+  # Adicionar a coluna 'undersized' para Urbano
+  bancos$Urbano <- bancos$Urbano %>%
+    mutate(
+      pi = round(mi_urbano * p_barra * n_domicilios / sum(n_domicilios, na.rm = TRUE)),
+      pi = ifelse(pi < 1, 1, pi), 
+      undersized = ifelse(n_domicilios < pi, "Sim", "Não")
+    )
+  
+  # Adicionar a coluna 'undersized' para Rural
+  bancos$Rural <- bancos$Rural %>%
+    mutate(
+      pi = round(mi_rural * p_barra * n_domicilios / sum(n_domicilios, na.rm = TRUE)),
+      pi = ifelse(pi < 1, 1, pi),
+      undersized = ifelse(n_domicilios < pi, "Sim", "Não")
+    )
+  
+  # Retornar os bancos atualizados
+  bancos
+})
+
+# Nomear os elementos da lista com os nomes dos municípios
+names(amostra_undersized) <- names(amostra_s)
+```
+
+
+Após a seleção dos 714 setores, pode-se então verificar quais setores podem ser definidos como undersizeds. Nesse estágio, calcula-se o valor de $p_{ihj}$, que representa o número de domicílios que serão selecionados de cada setor selecionado na amostra. Nesse contexto, calcula-se $p_{ijh}$ da seguinte forma:
+
+$$
+p_{ihj} = \frac{m_{ih}\times \bar{p} \times P_{ihj}}{\sum\limits_{j=1}^{m_{ih}}P_{ihj}}
+$$
+
+```{r}
+# Juntando os bancos
+
+# Consolidar os bancos em um único data frame
+amostra_setores <- lapply(names(amostra_undersized), function(municipio) {
+  bancos <- amostra_undersized[[municipio]]
+  
+  # Adicionar uma coluna indicando o município e o estrato (urbano/rural)
+  urbano <- bancos$Urbano 
+  rural <- bancos$Rural 
+  
+  # Juntar os dois estratos
+  bind_rows(urbano, rural)
+}) %>%
+  bind_rows()
+```
+
+
+Através da análise de setores undersizeds, não encontrou-se nenhum setor nessa situação, novamente devido ao formato de cálculo de $p_{ihj}$, que dificulta que tal situação aconteça. Sendo Assim, parte-se então para o cálculo dos pesos amostrais para cada setor, cuja soma do número de habitantes ponderada por este peso também deve coincidir com a população total do estado do Acre. 
+
+
+
+```{r}
+soma_estagio_2 <- sum(amostra_setores$peso_1*amostra_setores$peso_2*amostra_setores$v0001)
+
+kable(soma_estagio_2, caption = "Soma do total de habitantes ponderados pelo peso no 2º estágio" ,format.args = list(decimal.mark = ",", big.mark = "."), col.names = "")
+```
+Dessa forma, como o resultado coincide com a população total do estado do Acre, pode-se afirmar que a seleção no 2º estágio foi realizada de forma adequada. Sendo assim, Segue abaixo o mapa representando os setores que foram selecionados para a amostra.
+
+
+```{r}
+setores_selecionados <- amostra_setores[,1]
+malha_set = malha %>% mutate(amostra= ifelse(CD_SETOR %in% setores_selecionados, "Sorteado", "Não sorteado"))
+
+
+ggplot(malha_set)+
+geom_sf(aes(fill = amostra), color = "black", size = 2)+
+  scale_fill_manual(values = c("lightblue", "darkblue"), name = "")+
+  theme_void()+
+  labs(title = "Mapa da amostra de setores censitários do Acre", caption = "Fonte: Elaboração própria")+
+  theme(plot.title = element_text(size = 15, hjust = .7))
+```
+\newpage
+
+# Terceiro estágio: Domicílios
+
+A partir da seleção dos setores que comporão a amostra, pode-se então partir para o 3º estágio do plano amostral, que selecionará agora $p_{ihj}$ domicílios de cada setor selecionado. Porém, após o cálculo dos $p_{ihj}$, percebeu-se que alguns apresentaram valor menor que 0, e portanto, foram arredondados para o valor de 1, para que ao menos seja selecionado um município de cada setor. Neste sentido, o número de domicílios na amostra aumentou de 7.854 para 7.879, o que não é um problema, visto que o custo real do projeto está em $R\$ 137.508,00$, mais de 2 mil reais a menos que o custo reservado para o projeto, o que permite a alocação de verba para a coleta dos 25 domicílios "extras", alcançando então o custo real de $R\$ 137.758,00$.
+
+```{r, include=FALSE}
+sum(amostra_setores$pi) 
+custo_real = c0 + c1*a + c2*a*m_barra + c3*a*m_barra*p_barra
+custo_real_atualizado = c0 + c1*a + c2*a*m_barra + c3*7879
+
+```
+
+
+Sendo assim, utilizando a base de dados do CNEFE, seleciona-se por meio de sorteio aleatório $p_{ihj}$ domicílios de cada setor selecionado no 2º estágio, totalizando então 7.879 municípios.
+
+```{r}
+amostra_final <- data.frame()
+
+# Percorrer cada setor no banco de setores
+for (i in 1:nrow(amostra_setores)) {
+  # Obter o id_setor e pi do setor atual
+  setor_atual <- amostra_setores$CD_SETOR[i]
+  pi_atual <- amostra_setores$pi[i]
+  
+  # Filtrar os domicílios do setor atual
+  domicilios_setor <- domicilios %>% filter(COD_SETOR == setor_atual)
+  
+  # Sortear pi domicílios aleatoriamente
+  sorteados <- domicilios_setor %>%
+    slice_sample(n = pi_atual)
+  
+  # Adicionar os sorteados à amostra final
+  amostra_final <- bind_rows(amostra_final, sorteados)
+}
+```
+
+Após a seleção, é de interesse calcular o peso final de cada domicílio selecionado, obtido pela multiplicação dos pesos de cada estágio. A soma do número de pessoas por domicílio ponderada pelo peso final, deve resultar então no total de habitantes no estado do Acre, que é exatamente o que acontece:
+
+```{r}
+amostra_pesos <- left_join(amostra_final, amostra_setores[,c(1, 2, 11, 30, 31, 38, 39, 42, 43)], by = c("COD_SETOR" = "CD_SETOR"))
+amostra_pesos <- amostra_pesos %>% mutate(peso_3 = n_domicilios/pi,
+                         peso_final = peso_1*peso_2*peso_3)
+
+soma_final <- sum(amostra_pesos$peso_final*amostra_pesos$v0001/amostra_pesos$n_domicilios)
+
+kable(soma_final, caption = "Soma do total de habitantes por domicílio ponderado pelo peso final",format.args = list(decimal.mark = ",", big.mark = "."), col.names = "")
+```
+
+
+# Cálculo das estimativas
+
+## Média e variância
+
+Quando utiliza-se um desenho amostral complexo, com probalidades de seleção desiguais,
+a maioria das estatísticas de interesse não são simples funções lineares dos dados observados, e por isso são requeridos métodos alternativos para obtenção das estimativas, pois caso contrário, até as estimativas pontuais serão viesadas. Dentre as abordagens possíveis, existem 2 mais comuns, que são:
+
+\begin{itemize}
+\item Através de linearização por série de Taylor (TSL);
+\item Através do uso de procedimentos de reamostragem para estimação da variância, como JRR (Jacknife Repeated Replication), BRR (Balanced Repeated Replication) e Bootstrap.
+\end{itemize}
+
+No contexto em questão, para obter a estimativa da variância, optou-se por utilizar o método de Bootstrap. O método consiste na simulação de R réplicas da amostra, selecionando uma AAS de $a_h - 1$ UPA's por estrato, calculando novos pesos para cada réplica, e obtendo então as estimativas ponderadas da média populacional $\bar{y_r}$, com r = 1, ..., R réplicas. A partir dessa estimativa, obtém-se a estimativa da variância amostral, calculada como:
+
+$$
+\hat{var_{boot}(\bar{y_w})} = \frac{1}{r-1}\sum\limits_{r=1}^{R}{(\bar{y_r} - \bar{y_w})^2}
+$$
+\newpage
+onde:
+
+$$
+\bar{y_w} = \frac{\sum\limits_{i = 1}^{n}y_iw_i}{\sum\limits_{i = 1}^{n}w_i},
+\qquad 
+\bar{y_r} = \frac{\sum\limits_{j = 1}^{n}y_jw_{j,rep}}{\sum\limits_{j = 1}^{n}w_{j,rep}},
+\qquad
+w_{j,rep} = w_j\times\frac{ah}{ah-1}m_{hi}(r)
+$$
+e $m_{hi}$ é o número de vezes que a $UPA_i$ do estrato h foi selecionada na réplica r.
+
+
+Dado a natureza do estudo, para a estimação da variância, foi simulada uma variável aleatória bernoulli com o probabilidade $p = 0,0909091$, que é a proporção de municípios grandes no Acre, estimativa que já foi utilizada anteriormente. Após a simulação, obteve-se a seguinte distribuição da variável
+
+```{r}
+set.seed(1)
+amostra_final_simulada <- amostra_pesos %>%
+  mutate(x = rbinom(n(), 1, prop),
+         estrato = ifelse(peso_1 == 1, 1, 2))  
+
+
+
+# Definir o desenho amostral
+desenho_amostral <- svydesign(
+  ids = ~COD_SETOR, 
+  strata = ~SITUACAO,
+  weights = ~peso_final,
+  data = amostra_final_simulada
+)
+
+
+kable(amostra_final_simulada %>% 
+  group_by(x) %>% 
+  summarise(Frequência = n()), col.names = c("Variável simulada", "Frequência"), align = "c", format.args = list(decimal.mark = ",", big.mark = "."), caption = "Distribuição da variável simulada")
+```
+
+```{r}
+media = as.numeric(svymean(~x, desenho_amostral)[1])
+kable(media, col.names = "", caption = "Estimativa da média da variável simulada", format.args = list(decimal.mark = ","), align = "c")
+```
+
+Dessa forma, obteve-se a seguinte estimativa para a variância via Bootstrap com 1000 replicações:
+
+```{r}
+desenho_bootstrap <- as.svrepdesign(desenho_amostral, type = "bootstrap", replicates = 1000)
+
+erro_padrao = SE(svymean(~x, design = desenho_bootstrap))
+
+#desenho_jrr <- as.svrepdesign(desenho_amostral, type = "JKn")
+
+#svymean(~x, design = desenho_jrr)
+#confint(svymean(~x, design = desenho_jrr))
+
+
+kable(erro_padrao^2, col.names = "", caption = "Variância estimada por replicação via Bootstrap", format.args = list(decimal.mark = ","), align = "c", digits = 7)
+```
+
+
+```{r}
+ls = media + qt(.95, 712)*erro_padrao
+li = media - qt(.95, 712)*erro_padrao
+
+kable(data.frame(Li = li, media = media, Ls = ls), digits = 5, col.names = c("Limite inferior", "Estimativa", "Limite superior"), format.args = list(decimal.mark = ","), align = "c", caption = "Intervalo de confiança para a média via replicação Bootstrap")
+```
+
+\newpage
+## Replicação do erro amostral
+
+Além disso, também foi realizada a replicação do erro amostral por meio da variável simulada, obtendo as estimativas da média e do erro padrão para cada município, conforme disponibilizado abaixo:
+
+```{r}
+rep_erro <- svyby(~x, ~NM_MUN, desenho_amostral, svymean)
+row.names(rep_erro) <- 1:14
+
+kable(rep_erro, col.names = c("Municípios", "Variável simulada", "Erro"), caption = "Replicação do erro amostral por município", format.args = list(decimal.mark = ","), align = "c", digits = 4)
+```
+
+Percebe-se portanto que as estimativas dos erros padrão para cada município apresentado estão bem próximas do erro fixado nos cálculos de tamanho da amostra, de $2,5\%$, havendo apenas a ocorrência do município Xapuri com o erro padrão maior que 0,025.
+
+
+```{r, include=FALSE}
+amostra.xlsx <- amostra_pesos[,-c(37,38,40,42)]
+write.xlsx(amostra.xlsx, "Amostra_final.xlsx")
+```
+
+\newpage
+
+# Referências
+
+SILVA, ALAN. **Técnicas de Amostragem 2**. Brasília: Universidade de Brasília 20 jan 2025. Notas de aula.
+
+Downloads | IBGE. Disponível em: <https://www.ibge.gov.br/estatisticas/downloads-estatisticas.html?caminho=Censos/Censo_Demografico_2022/Agregados_por_Setores_Censitarios/Agregados_por_Setor_xlsx>. Acesso em: 18 dez 2024.
+
+Malhas Territoriais | IBGE. Disponível em: <https://geoftp.ibge.gov.br/organizacao_do_territorio/malhas_territoriais/malhas_de_setores_censitarios__divisoes_intramunicipais/censo_2022/setores/shp/UF/>. Acesso em: 18 dez. 2024.
+
+Cadastro Nacional de Endereços para Fins Estatísticos | IBGE. Disponível em: <https://www.ibge.gov.br/estatisticas/sociais/populacao/38734-cadastro-nacional-de-enderecos-para-fins-estatisticos.html?edicao=40122&t=downloads>. Acesso em: 18 dez. 2024.
+
+CHAMBERS, R. L.; SKINNER, C. J. Analysis of survey data. Chichester (England) ; Hoboken (Nj): J. Wiley, 2003.
+
